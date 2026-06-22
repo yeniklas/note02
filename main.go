@@ -15,12 +15,29 @@ import (
 	"github.com/yeniklas/note02/internal/model"
 	"github.com/yeniklas/note02/internal/store"
 	"github.com/yeniklas/note02/internal/tui"
+	"github.com/yeniklas/note02/internal/updater"
 	"golang.org/x/term"
 )
 
+var version = "dev"
+
 func main() {
 	journalFlag := flag.Bool("journal", false, "open or create today's journal entry and exit")
+	versionFlag := flag.Bool("version", false, "print version and exit")
+	updateFlag := flag.Bool("self-update", false, "update note02 to the latest release")
 	flag.Parse()
+
+	if *versionFlag {
+		fmt.Println(version)
+		return
+	}
+
+	if *updateFlag {
+		if err := updater.Run(version); err != nil {
+			fatalf("update: %v", err)
+		}
+		return
+	}
 
 	cfg, err := config.Load()
 	if err != nil {

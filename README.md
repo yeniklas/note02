@@ -15,11 +15,15 @@ Each note is encrypted with [`age`](https://github.com/FiloSottile/age) (passphr
 
 ## Install
 
+Download a pre-built binary from the [releases page](https://github.com/yeniklas/note02/releases), or install from source:
+
 ```sh
 go install github.com/yeniklas/note02@latest
 ```
 
-Requires **Go 1.25+**.
+Requires **Go 1.25+** to build from source.
+
+Check the version with `note02 --version`, and update an installed binary in place with `note02 --self-update`.
 
 ## Configuration
 
