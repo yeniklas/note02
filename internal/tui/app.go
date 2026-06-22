@@ -604,13 +604,16 @@ func (a *App) View() string {
 
 	view := lipgloss.JoinVertical(lipgloss.Left, header, body, status, help)
 
-	// overlays
+	// overlays — render the popup centered on a clean canvas. Overlaying a
+	// styled box onto the already-styled base by character offset corrupts the
+	// ANSI escape sequences (scrambled output), so we replace the view instead,
+	// the way memos-tui does.
 	if a.focus == panelSearch {
 		overlay := a.search.view(a.width)
-		view = placeOverlay(view, overlay, a.width, a.height)
+		view = lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, overlay)
 	} else if a.focus == panelFilter {
 		overlay := a.filter.view(a.activeTag)
-		view = placeOverlay(view, overlay, a.width, a.height)
+		view = lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, overlay)
 	}
 
 	return view
@@ -674,48 +677,6 @@ func (a *App) renderHelp() string {
 		"J:journal", "/:search", "f:filter", "C:clear", "q:quit",
 	}
 	return styleMuted.Render(strings.Join(items, "  "))
-}
-
-// placeOverlay centers the overlay string over the base view.
-func placeOverlay(base, overlay string, w, h int) string {
-	overlayLines := strings.Split(overlay, "\n")
-	oh := len(overlayLines)
-	ow := 0
-	for _, l := range overlayLines {
-		if lipgloss.Width(l) > ow {
-			ow = lipgloss.Width(l)
-		}
-	}
-	top := (h - oh) / 2
-	left := (w - ow) / 2
-	if top < 0 {
-		top = 0
-	}
-	if left < 0 {
-		left = 0
-	}
-
-	baseLines := strings.Split(base, "\n")
-	for i, ol := range overlayLines {
-		row := top + i
-		if row >= len(baseLines) {
-			break
-		}
-		bl := baseLines[row]
-		blRunes := []rune(bl)
-		// pad base line if needed
-		for len(blRunes) < left {
-			blRunes = append(blRunes, ' ')
-		}
-		olRunes := []rune(ol)
-		end := left + len(olRunes)
-		if end > len(blRunes) {
-			blRunes = append(blRunes, make([]rune, end-len(blRunes))...)
-		}
-		copy(blRunes[left:], olRunes)
-		baseLines[row] = string(blRunes)
-	}
-	return strings.Join(baseLines, "\n")
 }
 
 func fileHash(path string) string {

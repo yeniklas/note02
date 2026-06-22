@@ -52,9 +52,14 @@ func (m *filterPopupModel) visibleRows() int {
 	return max(1, m.height-4) // border + padding
 }
 
+// popupWidth is the fixed content width of the filter box, so it renders as a
+// stable box regardless of tag lengths or scroll position.
+const popupWidth = 28
+
 func (m *filterPopupModel) view(activeTag string) string {
+	box := styleBorder.Width(popupWidth)
 	if len(m.tags) == 0 {
-		return styleBorder.Render(styleMuted.Render("no tags"))
+		return box.Render(styleMuted.Render("no tags"))
 	}
 
 	rows := m.visibleRows()
@@ -86,5 +91,5 @@ func (m *filterPopupModel) view(activeTag string) string {
 		sb.WriteString(styleMuted.Render(fmt.Sprintf("  ↓ %d more", len(m.tags)-end)))
 	}
 
-	return styleBorder.Render("Tags\n\n" + strings.TrimRight(sb.String(), "\n"))
+	return box.Render("Tags\n\n" + strings.TrimRight(sb.String(), "\n"))
 }
