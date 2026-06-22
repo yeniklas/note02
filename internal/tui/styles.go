@@ -14,6 +14,7 @@ var (
 	colorSyncing   = lipgloss.Color("#fabd2f") // bright yellow
 	colorConflict  = lipgloss.Color("#fb4934") // bright red
 	colorTitle     = lipgloss.Color("#83a598") // bright blue
+	colorPinned    = lipgloss.Color("220")     // gold (pinned rows)
 
 	stylePanel = lipgloss.NewStyle().
 			Border(lipgloss.NormalBorder(), false, true, false, false).
@@ -22,6 +23,7 @@ var (
 	styleSelected = lipgloss.NewStyle().Bold(true).Foreground(colorSelected)
 	styleMuted    = lipgloss.NewStyle().Foreground(colorMuted)
 	styleTag      = lipgloss.NewStyle().Foreground(colorTag)
+	stylePinned   = lipgloss.NewStyle().Foreground(colorPinned)
 	styleStatus   = lipgloss.NewStyle().Foreground(colorStatus)
 	styleErr      = lipgloss.NewStyle().Foreground(colorErr)
 

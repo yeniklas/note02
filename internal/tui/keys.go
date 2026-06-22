@@ -12,6 +12,7 @@ type keyMap struct {
 	Tab      key.Binding
 	New      key.Binding
 	Edit     key.Binding
+	Pin      key.Binding
 	Delete   key.Binding
 	Search   key.Binding
 	Filter   key.Binding
@@ -30,6 +31,7 @@ var keys = keyMap{
 	Tab:      key.NewBinding(key.WithKeys("tab"), key.WithHelp("tab", "switch panel")),
 	New:      key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
 	Edit:     key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
+	Pin:      key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "pin")),
 	Delete:   key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
 	Search:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 	Filter:   key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "filter")),

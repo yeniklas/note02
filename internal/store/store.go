@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"sort"
 	"strings"
 	"time"
 
@@ -76,9 +75,7 @@ func (s *Store) List() ([]model.Note, error) {
 		notes = append(notes, note)
 	}
 
-	sort.Slice(notes, func(i, j int) bool {
-		return notes[i].UpdatedAt.After(notes[j].UpdatedAt)
-	})
+	model.SortNotes(notes)
 	return notes, nil
 }
 

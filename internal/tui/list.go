@@ -37,7 +37,7 @@ func (m *listModel) preferredWidth() int {
 	best := minW
 	for _, n := range m.notes {
 		title := noteTitle(n)
-		tags := strings.Join(n.Tags, " ")
+		tags := strings.Join(visibleTags(n.Tags), " ")
 		w := cursorW + dateW + 1 + len([]rune(title))
 		if tags != "" {
 			w += 1 + len(tags)
@@ -118,11 +118,20 @@ func (m *listModel) view(focused bool) string {
 
 	for i := m.offset; i < end; i++ {
 		note := m.notes[i]
+		pinned := note.IsPinned()
 		cursor := "  "
 		var row string
 
 		date := note.UpdatedAt.Format("2006-01-02")
-		tags := formatTags(note.Tags, 18)
+		shownTags := visibleTags(note.Tags)
+		// Pinned (non-selected) rows render uniformly gold, so their tags are
+		// drawn plain to inherit the row color rather than the aqua tag style.
+		var tags string
+		if pinned && i != m.cursor {
+			tags = plainTags(shownTags, 18)
+		} else {
+			tags = formatTags(shownTags, 18)
+		}
 		tagsW := lipgloss.Width(tags)
 
 		// available space for title: cursor(2) + date(10) + space(1) + title + [space + tags]
@@ -144,6 +153,8 @@ func (m *listModel) view(focused bool) string {
 			} else {
 				row = cursor + lipgloss.NewStyle().Bold(true).Render(line)
 			}
+		} else if pinned {
+			row = cursor + stylePinned.Render(line)
 		} else {
 			row = cursor + line
 		}
@@ -173,16 +184,36 @@ func noteTitle(n model.Note) string {
 }
 
 func formatTags(tags []string, maxLen int) string {
+	plain := plainTags(tags, maxLen)
+	if plain == "" {
+		return ""
+	}
+	return styleTag.Render(plain)
+}
+
+// plainTags joins tags space-separated and truncates to maxLen, without styling.
+func plainTags(tags []string, maxLen int) string {
 	if len(tags) == 0 {
 		return ""
 	}
-	s := styleTag.Render(strings.Join(tags, " "))
 	plain := strings.Join(tags, " ")
 	if len(plain) > maxLen {
 		plain = plain[:maxLen-1] + "…"
-		s = styleTag.Render(plain)
 	}
-	return s
+	return plain
+}
+
+// visibleTags returns the note's tags minus the pin tag, which is signalled by
+// the gold row styling instead of a tag chip.
+func visibleTags(tags []string) []string {
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if t == model.PinnedTag {
+			continue
+		}
+		out = append(out, t)
+	}
+	return out
 }
 
 func truncate(s string, n int) string {

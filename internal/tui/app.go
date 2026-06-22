@@ -108,9 +108,7 @@ func (a *App) loadNextCmd(id string) tea.Cmd {
 // notesLoadedMsg, matching Store.List ordering (newest first).
 func (a *App) finalizeLoadCmd() tea.Cmd {
 	notes := a.loadingNotes
-	sort.Slice(notes, func(i, j int) bool {
-		return notes[i].UpdatedAt.After(notes[j].UpdatedAt)
-	})
+	model.SortNotes(notes)
 	return func() tea.Msg {
 		return notesLoadedMsg{notes}
 	}
@@ -166,6 +164,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case noteSavedMsg:
 		a.notes = upsertNote(a.notes, msg.note)
+		model.SortNotes(a.notes)
 		a.allTags = collectTags(a.notes)
 		a.filter.setTags(a.allTags)
 		a.applyFilter()
@@ -291,6 +290,11 @@ func (a *App) handleListPreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.deleteMode = false
 		if note := a.list.selected(); note != nil {
 			return a, a.openEditor(note, "", nil)
+		}
+	case key.Matches(msg, keys.Pin):
+		a.deleteMode = false
+		if note := a.list.selected(); note != nil {
+			return a, a.togglePinCmd(*note)
 		}
 	case key.Matches(msg, keys.Journal):
 		a.deleteMode = false
@@ -447,6 +451,36 @@ func (a *App) openEditor(note *model.Note, defaultTitle string, defaultTags []st
 		}
 		return noteSavedMsg{note: updated, gitMsg: "note: update " + updated.ID}
 	})
+}
+
+// togglePinCmd adds or removes the pin tag on a note and persists it. Pinned
+// notes sort to the top of the list (see model.SortNotes).
+func (a *App) togglePinCmd(note model.Note) tea.Cmd {
+	return func() tea.Msg {
+		updated := note
+		action := "pin"
+		if note.IsPinned() {
+			updated.Tags = removeTag(note.Tags, model.PinnedTag)
+			action = "unpin"
+		} else {
+			updated.Tags = append(append([]string{}, note.Tags...), model.PinnedTag)
+		}
+		updated.UpdatedAt = time.Now().UTC()
+		if err := a.store.Update(updated); err != nil {
+			return errMsg{err}
+		}
+		return noteSavedMsg{note: updated, gitMsg: "note: " + action + " " + updated.ID}
+	}
+}
+
+func removeTag(tags []string, target string) []string {
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		if t != target {
+			out = append(out, t)
+		}
+	}
+	return out
 }
 
 func (a *App) deleteNoteCmd(id string) tea.Cmd {
@@ -628,7 +662,7 @@ func (a *App) renderStatus() string {
 
 func (a *App) renderHelp() string {
 	items := []string{
-		"j/k:move", "tab:panel", "n:new", "e:edit", "d:delete",
+		"j/k:move", "tab:panel", "n:new", "e:edit", "p:pin", "d:delete",
 		"J:journal", "/:search", "f:filter", "C:clear", "q:quit",
 	}
 	return styleMuted.Render(strings.Join(items, "  "))
@@ -690,6 +724,9 @@ func collectTags(notes []model.Note) []string {
 	seen := map[string]bool{}
 	for _, n := range notes {
 		for _, t := range n.Tags {
+			if t == model.PinnedTag {
+				continue
+			}
 			seen[t] = true
 		}
 	}
