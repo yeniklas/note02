@@ -82,6 +82,26 @@ func (m *listModel) moveDown() {
 	}
 }
 
+func (m *listModel) pageUp() {
+	m.cursor -= m.visibleRows()
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	if m.cursor < m.offset {
+		m.offset = m.cursor
+	}
+}
+
+func (m *listModel) pageDown() {
+	m.cursor += m.visibleRows()
+	if m.cursor > len(m.notes)-1 {
+		m.cursor = max(0, len(m.notes)-1)
+	}
+	if m.cursor >= m.offset+m.visibleRows() {
+		m.offset = m.cursor - m.visibleRows() + 1
+	}
+}
+
 func (m *listModel) jumpTop() {
 	m.cursor = 0
 	m.offset = 0

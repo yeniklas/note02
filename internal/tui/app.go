@@ -277,6 +277,14 @@ func (a *App) handleListPreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.deleteMode = false
 		a.list.moveDown()
 		a.updatePreview()
+	case key.Matches(msg, keys.PageUp):
+		a.deleteMode = false
+		a.list.pageUp()
+		a.updatePreview()
+	case key.Matches(msg, keys.PageDown):
+		a.deleteMode = false
+		a.list.pageDown()
+		a.updatePreview()
 	case key.Matches(msg, keys.Top):
 		a.list.jumpTop()
 		a.updatePreview()
