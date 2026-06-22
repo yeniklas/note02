@@ -42,7 +42,7 @@ func run(repoPath string, args ...string) error {
 }
 
 func CommitAndPush(repoPath, message string) error {
-	if err := run(repoPath, "add", "notes/"); err != nil {
+	if err := run(repoPath, "add", "notes/", "identity.age"); err != nil {
 		return err
 	}
 	// commit may be a no-op if nothing changed

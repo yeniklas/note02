@@ -11,6 +11,7 @@ import (
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/yeniklas/note02/internal/config"
+	"github.com/yeniklas/note02/internal/crypto"
 	"github.com/yeniklas/note02/internal/git"
 	"github.com/yeniklas/note02/internal/model"
 	"github.com/yeniklas/note02/internal/store"
@@ -57,7 +58,21 @@ func main() {
 		fatalf("passphrase: %v", err)
 	}
 
-	s := store.New(cfg.Repo.Path, passphrase)
+	identity, err := crypto.LoadOrCreateIdentity(cfg.Repo.Path, passphrase)
+	if err != nil {
+		fatalf("identity: %v", err)
+	}
+	migrated, err := store.MigrateToIdentity(cfg.Repo.Path, passphrase, identity)
+	if err != nil {
+		fatalf("migrate: %v", err)
+	}
+	if migrated > 0 {
+		if err := git.CommitAndPush(cfg.Repo.Path, fmt.Sprintf("note: migrate %d notes to identity encryption", migrated)); err != nil {
+			fatalf("commit migration: %v", err)
+		}
+	}
+
+	s := store.New(cfg.Repo.Path, identity)
 	journalTags := cfg.Journal.EffectiveTags()
 
 	if *journalFlag {

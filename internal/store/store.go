@@ -9,18 +9,24 @@ import (
 	"strings"
 	"time"
 
+	"filippo.io/age"
 	"github.com/google/uuid"
 	"github.com/yeniklas/note02/internal/crypto"
 	"github.com/yeniklas/note02/internal/model"
 )
 
 type Store struct {
-	repoPath   string
-	passphrase string
+	repoPath  string
+	identity  *age.X25519Identity
+	recipient *age.X25519Recipient
 }
 
-func New(repoPath, passphrase string) *Store {
-	return &Store{repoPath: repoPath, passphrase: passphrase}
+func New(repoPath string, identity *age.X25519Identity) *Store {
+	return &Store{
+		repoPath:  repoPath,
+		identity:  identity,
+		recipient: identity.Recipient(),
+	}
 }
 
 func (s *Store) RepoPath() string { return s.repoPath }
@@ -90,7 +96,7 @@ func (s *Store) read(id string) (*model.Note, error) {
 	if err != nil {
 		return nil, err
 	}
-	plain, err := crypto.Decrypt(data, s.passphrase)
+	plain, err := crypto.Decrypt(data, s.identity)
 	if err != nil {
 		return nil, fmt.Errorf("decrypt: %w", err)
 	}
@@ -106,7 +112,7 @@ func (s *Store) write(note *model.Note) error {
 	if err != nil {
 		return err
 	}
-	enc, err := crypto.Encrypt(data, s.passphrase)
+	enc, err := crypto.Encrypt(data, s.recipient)
 	if err != nil {
 		return err
 	}
@@ -149,6 +155,62 @@ func (s *Store) Update(note model.Note) error {
 		return fmt.Errorf("write: %w", err)
 	}
 	return nil
+}
+
+// MigrateToIdentity re-encrypts any legacy scrypt-encrypted notes to the X25519
+// identity so that subsequent reads don't run a per-note scrypt KDF. It is
+// idempotent: notes already encrypted to the identity are detected cheaply (from
+// the age header) and skipped, so an interrupted migration simply resumes on the
+// next run. Returns the number of notes re-encrypted.
+func MigrateToIdentity(repoPath, passphrase string, identity *age.X25519Identity) (int, error) {
+	notesDir := filepath.Join(repoPath, "notes")
+	entries, err := os.ReadDir(notesDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return 0, nil
+		}
+		return 0, fmt.Errorf("read notes dir: %w", err)
+	}
+
+	recipient := identity.Recipient()
+	migrated := 0
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".age") {
+			continue
+		}
+		path := filepath.Join(notesDir, e.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return migrated, fmt.Errorf("read %s: %w", e.Name(), err)
+		}
+		if !isScryptEncrypted(data) {
+			continue
+		}
+		plain, err := crypto.DecryptScrypt(data, passphrase)
+		if err != nil {
+			return migrated, fmt.Errorf("decrypt %s: %w", e.Name(), err)
+		}
+		enc, err := crypto.Encrypt(plain, recipient)
+		if err != nil {
+			return migrated, fmt.Errorf("re-encrypt %s: %w", e.Name(), err)
+		}
+		if err := os.WriteFile(path, enc, 0600); err != nil {
+			return migrated, fmt.Errorf("write %s: %w", e.Name(), err)
+		}
+		migrated++
+	}
+	return migrated, nil
+}
+
+// isScryptEncrypted reports whether an age file uses a scrypt recipient stanza.
+// Recipient stanzas appear in the plaintext header (before the "---" HMAC line),
+// so this is a cheap header inspection with no decryption.
+func isScryptEncrypted(data []byte) bool {
+	header := data
+	if i := strings.Index(string(data), "\n---"); i >= 0 {
+		header = data[:i]
+	}
+	return strings.Contains(string(header), "-> scrypt")
 }
 
 func (s *Store) Delete(id string) error {

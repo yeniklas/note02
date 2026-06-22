@@ -58,7 +58,6 @@ type App struct {
 	// startup loading state
 	loading      bool
 	progress     progress.Model
-	pendingIDs   []string
 	loadTotal    int
 	loadDone     int
 	loadingNotes []model.Note
@@ -132,25 +131,27 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case loadStartMsg:
 		a.loadTotal = len(msg.ids)
-		a.pendingIDs = msg.ids
 		a.loadDone = 0
 		a.loadingNotes = nil
 		if a.loadTotal == 0 {
 			return a, a.finalizeLoadCmd()
 		}
-		next := a.pendingIDs[0]
-		a.pendingIDs = a.pendingIDs[1:]
-		return a, a.loadNextCmd(next)
+		// Decrypt all notes concurrently: tea.Batch runs each command on its
+		// own goroutine, so loads fan out across CPU cores instead of chaining
+		// one after another.
+		cmds := make([]tea.Cmd, len(msg.ids))
+		for i, id := range msg.ids {
+			cmds[i] = a.loadNextCmd(id)
+		}
+		return a, tea.Batch(cmds...)
 
 	case noteLoadedMsg:
 		a.loadingNotes = append(a.loadingNotes, msg.note)
 		a.loadDone++
-		if len(a.pendingIDs) > 0 {
-			next := a.pendingIDs[0]
-			a.pendingIDs = a.pendingIDs[1:]
-			return a, a.loadNextCmd(next)
+		if a.loadDone == a.loadTotal {
+			return a, a.finalizeLoadCmd()
 		}
-		return a, a.finalizeLoadCmd()
+		return a, nil
 
 	case notesLoadedMsg:
 		a.loading = false
