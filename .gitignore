@@ -1,0 +1,10 @@
+# Compiled binary
+/note02
+
+# Local tooling / agent state
+/.graymatter/
+/.claude/
+
+# Go
+*.test
+*.out
