@@ -26,6 +26,7 @@ func main() {
 	journalFlag := flag.Bool("journal", false, "open or create today's journal entry and exit")
 	versionFlag := flag.Bool("version", false, "print version and exit")
 	updateFlag := flag.Bool("self-update", false, "update note02 to the latest release")
+	changePassFlag := flag.Bool("change-passphrase", false, "re-encrypt the key under a new passphrase and exit")
 	flag.Parse()
 
 	if *versionFlag {
@@ -46,6 +47,13 @@ func main() {
 	}
 	if cfg.Repo.Path == "" {
 		fatalf("repo.path is not set in ~/.config/note02/config.toml")
+	}
+
+	if *changePassFlag {
+		if err := changePassphrase(cfg.Repo.Path); err != nil {
+			fatalf("change passphrase: %v", err)
+		}
+		return
 	}
 
 	notesDir := filepath.Join(cfg.Repo.Path, "notes")
@@ -196,8 +204,44 @@ func parseFrontmatter(text string) (title string, tags []string, content string)
 	return title, tags, content
 }
 
+// changePassphrase re-wraps the key file under a new passphrase. The X25519 key
+// is unchanged, so notes are not re-encrypted; only identity.age is rewritten.
+func changePassphrase(repoPath string) error {
+	old, err := promptPassphrase("Current passphrase: ")
+	if err != nil {
+		return err
+	}
+	next, err := promptPassphrase("New passphrase: ")
+	if err != nil {
+		return err
+	}
+	confirm, err := promptPassphrase("Confirm new passphrase: ")
+	if err != nil {
+		return err
+	}
+	if next == "" {
+		return fmt.Errorf("new passphrase must not be empty")
+	}
+	if next != confirm {
+		return fmt.Errorf("passphrases do not match")
+	}
+
+	if err := crypto.ChangePassphrase(repoPath, old, next); err != nil {
+		return err
+	}
+	fmt.Fprintln(os.Stderr, "Passphrase changed.")
+	if err := git.CommitAndPush(repoPath, "note: change passphrase"); err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not sync identity to git: %v\n", err)
+	}
+	return nil
+}
+
 func readPassphrase() (string, error) {
-	fmt.Fprint(os.Stderr, "Passphrase: ")
+	return promptPassphrase("Passphrase: ")
+}
+
+func promptPassphrase(prompt string) (string, error) {
+	fmt.Fprint(os.Stderr, prompt)
 	raw, err := term.ReadPassword(int(os.Stdin.Fd()))
 	fmt.Fprintln(os.Stderr)
 	if err != nil {

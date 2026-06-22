@@ -74,6 +74,37 @@ func IdentityPath(repoPath string) string {
 	return filepath.Join(repoPath, identityFile)
 }
 
+// ChangePassphrase re-encrypts the existing identity file under a new
+// passphrase. The underlying X25519 key is unchanged, so notes do not need to
+// be re-encrypted. Fails if the identity does not exist or the old passphrase
+// is wrong.
+func ChangePassphrase(repoPath, oldPassphrase, newPassphrase string) error {
+	path := IdentityPath(repoPath)
+	data, err := os.ReadFile(path)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return fmt.Errorf("no identity at %s (run note02 once to create it)", path)
+		}
+		return fmt.Errorf("read identity: %w", err)
+	}
+	plain, err := DecryptScrypt(data, oldPassphrase)
+	if err != nil {
+		return fmt.Errorf("unlock identity (wrong passphrase?): %w", err)
+	}
+	key := bytes.TrimSpace(plain)
+	if _, err := age.ParseX25519Identity(string(key)); err != nil {
+		return fmt.Errorf("parse identity: %w", err)
+	}
+	enc, err := EncryptScrypt(key, newPassphrase)
+	if err != nil {
+		return fmt.Errorf("re-encrypt identity: %w", err)
+	}
+	if err := os.WriteFile(path, enc, 0600); err != nil {
+		return fmt.Errorf("write identity: %w", err)
+	}
+	return nil
+}
+
 // LoadOrCreateIdentity unlocks the repo's X25519 identity using the passphrase,
 // creating it on first use. The secret key is stored scrypt-encrypted at
 // <repo>/identity.age, so the passphrase is only needed to derive the key once
