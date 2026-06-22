@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/progress"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/yeniklas/note02/internal/git"
@@ -53,6 +54,14 @@ type App struct {
 	width       int
 	height      int
 	markdown    bool
+
+	// startup loading state
+	loading      bool
+	progress     progress.Model
+	pendingIDs   []string
+	loadTotal    int
+	loadDone     int
+	loadingNotes []model.Note
 }
 
 func New(s *store.Store, markdown bool, journalTags []string) *App {
@@ -64,19 +73,46 @@ func New(s *store.Store, markdown bool, journalTags []string) *App {
 		filter:      newFilterPopupModel(),
 		markdown:    markdown,
 		journalTags: journalTags,
+		loading:     true,
+		progress:    progress.New(progress.WithDefaultGradient()),
 	}
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.loadNotesCmd(), a.checkRepoStatusCmd())
+	return tea.Batch(a.startLoadCmd(), a.checkRepoStatusCmd())
 }
 
-func (a *App) loadNotesCmd() tea.Cmd {
+// startLoadCmd enumerates note IDs (cheap, no decryption) so the total is known
+// before per-note loading begins.
+func (a *App) startLoadCmd() tea.Cmd {
 	return func() tea.Msg {
-		notes, err := a.store.List()
+		ids, err := a.store.ListIDs()
 		if err != nil {
 			return errMsg{err}
 		}
+		return loadStartMsg{ids}
+	}
+}
+
+// loadNextCmd decrypts a single note by ID.
+func (a *App) loadNextCmd(id string) tea.Cmd {
+	return func() tea.Msg {
+		note, err := a.store.Read(id)
+		if err != nil {
+			return errMsg{err}
+		}
+		return noteLoadedMsg{note}
+	}
+}
+
+// finalizeLoadCmd sorts the accumulated notes and emits the terminal
+// notesLoadedMsg, matching Store.List ordering (newest first).
+func (a *App) finalizeLoadCmd() tea.Cmd {
+	notes := a.loadingNotes
+	sort.Slice(notes, func(i, j int) bool {
+		return notes[i].UpdatedAt.After(notes[j].UpdatedAt)
+	})
+	return func() tea.Msg {
 		return notesLoadedMsg{notes}
 	}
 }
@@ -86,10 +122,38 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = msg.Width
 		a.height = msg.Height
+		if w := msg.Width - 4; w < 60 {
+			a.progress.Width = w
+		} else {
+			a.progress.Width = 60
+		}
 		a.relayout()
 		return a, nil
 
+	case loadStartMsg:
+		a.loadTotal = len(msg.ids)
+		a.pendingIDs = msg.ids
+		a.loadDone = 0
+		a.loadingNotes = nil
+		if a.loadTotal == 0 {
+			return a, a.finalizeLoadCmd()
+		}
+		next := a.pendingIDs[0]
+		a.pendingIDs = a.pendingIDs[1:]
+		return a, a.loadNextCmd(next)
+
+	case noteLoadedMsg:
+		a.loadingNotes = append(a.loadingNotes, msg.note)
+		a.loadDone++
+		if len(a.pendingIDs) > 0 {
+			next := a.pendingIDs[0]
+			a.pendingIDs = a.pendingIDs[1:]
+			return a, a.loadNextCmd(next)
+		}
+		return a, a.finalizeLoadCmd()
+
 	case notesLoadedMsg:
+		a.loading = false
 		a.notes = msg.notes
 		a.allTags = collectTags(a.notes)
 		a.filter.setTags(a.allTags)
@@ -476,6 +540,10 @@ func (a *App) View() string {
 		return "loading…"
 	}
 
+	if a.loading {
+		return a.loadingView()
+	}
+
 	listW := a.list.width
 	previewW := a.preview.width
 
@@ -503,6 +571,21 @@ func (a *App) View() string {
 	}
 
 	return view
+}
+
+// loadingView renders a centered startup splash with a determinate progress bar.
+func (a *App) loadingView() string {
+	var percent float64
+	if a.loadTotal > 0 {
+		percent = float64(a.loadDone) / float64(a.loadTotal)
+	}
+
+	title := lipgloss.NewStyle().Bold(true).Foreground(colorTitle).Render("note02")
+	bar := a.progress.ViewAs(percent)
+	count := styleMuted.Render(fmt.Sprintf("%d / %d notes", a.loadDone, a.loadTotal))
+
+	content := lipgloss.JoinVertical(lipgloss.Center, title, "", bar, "", count)
+	return lipgloss.Place(a.width, a.height, lipgloss.Center, lipgloss.Center, content)
 }
 
 func (a *App) renderHeader() string {
