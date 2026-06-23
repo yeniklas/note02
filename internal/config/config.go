@@ -12,6 +12,7 @@ type Config struct {
 	Repo    RepoConfig    `toml:"repo"`
 	Display DisplayConfig `toml:"display"`
 	Journal JournalConfig `toml:"journal"`
+	Archive ArchiveConfig `toml:"archive"`
 }
 
 type RepoConfig struct {
@@ -31,6 +32,19 @@ func (j JournalConfig) EffectiveTags() []string {
 		return []string{"journal"}
 	}
 	return j.Tags
+}
+
+type ArchiveConfig struct {
+	Tag string `toml:"tag"`
+}
+
+// EffectiveTag returns the tag that marks a note as archived, defaulting to
+// "archived" when unset.
+func (a ArchiveConfig) EffectiveTag() string {
+	if a.Tag == "" {
+		return "archived"
+	}
+	return a.Tag
 }
 
 func Load() (*Config, error) {

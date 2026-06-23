@@ -13,6 +13,7 @@ type keyMap struct {
 	New      key.Binding
 	Edit     key.Binding
 	Pin      key.Binding
+	Archive  key.Binding
 	Delete   key.Binding
 	Search   key.Binding
 	Filter   key.Binding
@@ -32,6 +33,7 @@ var keys = keyMap{
 	New:      key.NewBinding(key.WithKeys("n"), key.WithHelp("n", "new")),
 	Edit:     key.NewBinding(key.WithKeys("e"), key.WithHelp("e", "edit")),
 	Pin:      key.NewBinding(key.WithKeys("p"), key.WithHelp("p", "pin")),
+	Archive:  key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "archive")),
 	Delete:   key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete")),
 	Search:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 	Filter:   key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "filter")),

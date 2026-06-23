@@ -51,6 +51,7 @@ type App struct {
 	deleteMode  bool // waiting for second 'd'
 	syncState   syncState
 	journalTags []string
+	archiveTag  string
 	width       int
 	height      int
 	markdown    bool
@@ -63,7 +64,7 @@ type App struct {
 	loadingNotes []model.Note
 }
 
-func New(s *store.Store, markdown bool, journalTags []string) *App {
+func New(s *store.Store, markdown bool, journalTags []string, archiveTag string) *App {
 	return &App{
 		store:       s,
 		list:        newListModel(),
@@ -72,6 +73,7 @@ func New(s *store.Store, markdown bool, journalTags []string) *App {
 		filter:      newFilterPopupModel(),
 		markdown:    markdown,
 		journalTags: journalTags,
+		archiveTag:  archiveTag,
 		loading:     true,
 		progress:    progress.New(progress.WithDefaultGradient()),
 	}
@@ -304,6 +306,11 @@ func (a *App) handleListPreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if note := a.list.selected(); note != nil {
 			return a, a.togglePinCmd(*note)
 		}
+	case key.Matches(msg, keys.Archive):
+		a.deleteMode = false
+		if note := a.list.selected(); note != nil {
+			return a, a.toggleArchiveCmd(*note)
+		}
 	case key.Matches(msg, keys.Journal):
 		a.deleteMode = false
 		return a, a.openJournalCmd()
@@ -481,6 +488,28 @@ func (a *App) togglePinCmd(note model.Note) tea.Cmd {
 	}
 }
 
+// toggleArchiveCmd adds or removes the archive tag on a note and persists it.
+// Archived notes are hidden from the list (and search) unless the archive tag
+// is the active filter (see applyFilter).
+func (a *App) toggleArchiveCmd(note model.Note) tea.Cmd {
+	tag := a.archiveTag
+	return func() tea.Msg {
+		updated := note
+		action := "archive"
+		if hasTag(note.Tags, tag) {
+			updated.Tags = removeTag(note.Tags, tag)
+			action = "unarchive"
+		} else {
+			updated.Tags = append(append([]string{}, note.Tags...), tag)
+		}
+		updated.UpdatedAt = time.Now().UTC()
+		if err := a.store.Update(updated); err != nil {
+			return errMsg{err}
+		}
+		return noteSavedMsg{note: updated, gitMsg: "note: " + action + " " + updated.ID}
+	}
+}
+
 func removeTag(tags []string, target string) []string {
 	out := make([]string, 0, len(tags))
 	for _, t := range tags {
@@ -489,6 +518,15 @@ func removeTag(tags []string, target string) []string {
 		}
 	}
 	return out
+}
+
+func hasTag(tags []string, target string) bool {
+	for _, t := range tags {
+		if t == target {
+			return true
+		}
+	}
+	return false
 }
 
 func (a *App) deleteNoteCmd(id string) tea.Cmd {
@@ -531,15 +569,13 @@ func (a *App) applyFilter() {
 	query := strings.ToLower(strings.TrimSpace(a.searchQuery))
 
 	for _, n := range a.notes {
+		// Hide archived notes everywhere unless the archive tag is the active
+		// filter (i.e. the user explicitly asked to see archived notes).
+		if a.archiveTag != "" && a.activeTag != a.archiveTag && hasTag(n.Tags, a.archiveTag) {
+			continue
+		}
 		if a.activeTag != "" {
-			found := false
-			for _, t := range n.Tags {
-				if t == a.activeTag {
-					found = true
-					break
-				}
-			}
-			if !found {
+			if !hasTag(n.Tags, a.activeTag) {
 				continue
 			}
 		}
@@ -673,7 +709,7 @@ func (a *App) renderStatus() string {
 
 func (a *App) renderHelp() string {
 	items := []string{
-		"j/k:move", "tab:panel", "n:new", "e:edit", "p:pin", "d:delete",
+		"j/k:move", "tab:panel", "n:new", "e:edit", "p:pin", "a:archive", "d:delete",
 		"J:journal", "/:search", "f:filter", "C:clear", "q:quit",
 	}
 	return styleMuted.Render(strings.Join(items, "  "))

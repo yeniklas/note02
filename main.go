@@ -90,7 +90,7 @@ func main() {
 		return
 	}
 
-	app := tui.New(s, cfg.Display.Markdown, journalTags)
+	app := tui.New(s, cfg.Display.Markdown, journalTags, cfg.Archive.EffectiveTag())
 	p := tea.NewProgram(app, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fatalf("run: %v", err)
