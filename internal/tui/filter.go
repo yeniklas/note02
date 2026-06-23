@@ -64,27 +64,29 @@ func (m *filterPopupModel) view(activeTag string) string {
 
 	rows := m.visibleRows()
 	end := min(m.offset+rows, len(m.tags))
+	tree := tagTree(m.tags)
 	var sb strings.Builder
 
 	for i := m.offset; i < end; i++ {
 		tag := m.tags[i]
-		line := ""
-		prefix := "  "
-		if strings.Contains(tag, "/") {
-			prefix = "    "
-			line = styleMuted.Render("└ ") + styleTag.Render(tag)
-		} else {
-			line = styleTag.Render(tag)
-		}
-		if tag == activeTag {
-			line = "• " + styleSelected.Render(tag)
-			prefix = ""
-		}
+		node := tree[i]
+
 		cursor := "  "
 		if i == m.cursor {
 			cursor = "> "
 		}
-		sb.WriteString(cursor + prefix + line + "\n")
+		indent := strings.Repeat("  ", node.depth)
+		connector := ""
+		if node.depth > 0 {
+			connector = styleMuted.Render("└ ")
+		}
+		var label string
+		if tag == activeTag {
+			label = "• " + styleSelected.Render(node.label)
+		} else {
+			label = styleTag.Render(node.label)
+		}
+		sb.WriteString(cursor + indent + connector + label + "\n")
 	}
 
 	if end < len(m.tags) {
@@ -92,4 +94,45 @@ func (m *filterPopupModel) view(activeTag string) string {
 	}
 
 	return box.Render("Tags\n\n" + strings.TrimRight(sb.String(), "\n"))
+}
+
+// tagTreeRow describes how to render a tag within the hierarchy: its nesting
+// depth (the number of ancestor tags that actually exist in the list) and the
+// label to show — the segment beneath its nearest existing ancestor, or the
+// full tag when it has no parent. This avoids implying a hierarchy that isn't
+// there: a tag like "linux/dd" is only indented if "linux" is itself a tag.
+type tagTreeRow struct {
+	depth int
+	label string
+}
+
+func tagTree(tags []string) []tagTreeRow {
+	set := make(map[string]bool, len(tags))
+	for _, t := range tags {
+		set[t] = true
+	}
+	rows := make([]tagTreeRow, len(tags))
+	for i, tag := range tags {
+		segs := strings.Split(tag, "/")
+		depth := 0
+		nearest := ""
+		prefix := ""
+		for j := 0; j < len(segs)-1; j++ {
+			if prefix == "" {
+				prefix = segs[j]
+			} else {
+				prefix += "/" + segs[j]
+			}
+			if set[prefix] {
+				depth++
+				nearest = prefix
+			}
+		}
+		label := tag
+		if nearest != "" {
+			label = tag[len(nearest)+1:]
+		}
+		rows[i] = tagTreeRow{depth: depth, label: label}
+	}
+	return rows
 }
