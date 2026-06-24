@@ -120,7 +120,7 @@ func (m *listModel) visibleRows() int {
 	return max(1, m.height-2)
 }
 
-func (m *listModel) view(focused bool) string {
+func (m *listModel) view(focused bool, selected map[string]bool) string {
 	if m.loading {
 		return styleMuted.Render("loading…")
 	}
@@ -140,8 +140,20 @@ func (m *listModel) view(focused bool) string {
 	for i := m.offset; i < end; i++ {
 		note := m.notes[i]
 		pinned := note.IsPinned()
-		cursor := "  "
+		isSel := selected[note.ID]
+		var cursor string
 		var row string
+
+		switch {
+		case i == m.cursor && isSel:
+			cursor = "●>"
+		case i == m.cursor:
+			cursor = "> "
+		case isSel:
+			cursor = "● "
+		default:
+			cursor = "  "
+		}
 
 		date := note.EffectiveCreatedAt().Format("2006-01-02")
 		shownTags := visibleTags(note.Tags)
@@ -160,8 +172,7 @@ func (m *listModel) view(focused bool) string {
 
 		line := fmt.Sprintf("%s %-*s %s", date, titleWidth, title, tags)
 
-		if i == m.cursor {
-			cursor = "> "
+		if i == m.cursor || isSel {
 			if focused {
 				row = cursor + styleSelected.Render(line)
 			} else {

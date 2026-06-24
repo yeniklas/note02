@@ -48,8 +48,10 @@ type App struct {
 	searchQuery string
 	statusMsg   string
 	errMsg      string
-	deleteMode  bool // waiting for second 'd'
-	syncState   syncState
+	deleteMode   bool // waiting for second 'd'
+	selected     map[string]bool
+	selectAnchor int // cursor index of last Space press; -1 if unset
+	syncState    syncState
 	journalTags []string
 	archiveTag  string
 	tagColors   map[string]string
@@ -73,17 +75,19 @@ func New(s *store.Store, markdown bool, journalTags []string, archiveTag string,
 	filter := newFilterPopupModel()
 	filter.tagColors = tagColors
 	return &App{
-		store:       s,
-		list:        list,
-		preview:     preview,
-		search:      newSearchModel(),
-		filter:      filter,
-		markdown:    markdown,
-		journalTags: journalTags,
-		archiveTag:  archiveTag,
-		tagColors:   tagColors,
-		loading:     true,
-		progress:    progress.New(progress.WithDefaultGradient()),
+		store:        s,
+		list:         list,
+		preview:      preview,
+		search:       newSearchModel(),
+		filter:       filter,
+		markdown:     markdown,
+		journalTags:  journalTags,
+		archiveTag:   archiveTag,
+		tagColors:    tagColors,
+		loading:      true,
+		progress:     progress.New(progress.WithDefaultGradient()),
+		selected:     make(map[string]bool),
+		selectAnchor: -1,
 	}
 }
 
@@ -330,6 +334,13 @@ func (a *App) handleListPreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 	case key.Matches(msg, keys.Archive):
 		a.deleteMode = false
+		if len(a.selected) > 0 {
+			notes := notesForIDs(a.filtered, a.selected)
+			archive := !allHaveTag(notes, a.archiveTag)
+			a.selected = make(map[string]bool)
+			a.selectAnchor = -1
+			return a, tea.Batch(a.batchArchiveCmds(notes, archive)...)
+		}
 		if note := a.list.selected(); note != nil {
 			return a, a.toggleArchiveCmd(*note)
 		}
@@ -337,6 +348,18 @@ func (a *App) handleListPreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		a.deleteMode = false
 		return a, a.openJournalCmd()
 	case key.Matches(msg, keys.Delete):
+		if len(a.selected) > 0 {
+			if a.deleteMode {
+				a.deleteMode = false
+				ids := keysOf(a.selected)
+				a.selected = make(map[string]bool)
+				a.selectAnchor = -1
+				return a, tea.Batch(a.batchDeleteCmds(ids)...)
+			}
+			a.deleteMode = true
+			a.statusMsg = fmt.Sprintf("press d again to confirm delete %d notes", len(a.selected))
+			return a, nil
+		}
 		if note := a.list.selected(); note != nil {
 			if a.deleteMode {
 				a.deleteMode = false
@@ -345,6 +368,34 @@ func (a *App) handleListPreviewKey(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			a.deleteMode = true
 			a.statusMsg = "press d again to confirm delete"
 		}
+	case key.Matches(msg, keys.SelectToggle):
+		a.deleteMode = false
+		if note := a.list.selected(); note != nil {
+			if a.selected[note.ID] {
+				delete(a.selected, note.ID)
+			} else {
+				a.selected[note.ID] = true
+			}
+			a.selectAnchor = a.list.cursor
+		}
+	case key.Matches(msg, keys.SelectRange):
+		a.deleteMode = false
+		anchor := a.selectAnchor
+		if anchor == -1 {
+			anchor = a.list.cursor
+		}
+		lo := min(anchor, a.list.cursor)
+		hi := max(anchor, a.list.cursor)
+		for i := lo; i <= hi; i++ {
+			if i < len(a.filtered) {
+				a.selected[a.filtered[i].ID] = true
+			}
+		}
+	case key.Matches(msg, keys.ClearSelect):
+		a.deleteMode = false
+		a.selected = make(map[string]bool)
+		a.selectAnchor = -1
+		a.statusMsg = ""
 	case key.Matches(msg, keys.Search):
 		a.deleteMode = false
 		a.focus = panelSearch
@@ -653,7 +704,7 @@ func (a *App) View() string {
 	listW := a.list.width
 	previewW := a.preview.width
 
-	listContent := a.list.view(a.focus == panelList)
+	listContent := a.list.view(a.focus == panelList, a.selected)
 	previewContent := a.preview.view(a.focus == panelPreview)
 
 	bodyH := a.height - 3
@@ -726,6 +777,9 @@ func (a *App) renderStatus() string {
 	if a.searchQuery != "" {
 		parts = append(parts, styleMuted.Render("search: "+a.searchQuery))
 	}
+	if n := len(a.selected); n > 0 {
+		parts = append(parts, styleStatus.Render(fmt.Sprintf("%d selected", n)))
+	}
 	if a.errMsg != "" {
 		parts = append(parts, styleErr.Render("error: "+a.errMsg))
 	} else if a.statusMsg != "" {
@@ -788,4 +842,71 @@ func removeNote(notes []model.Note, id string) []model.Note {
 		}
 	}
 	return out
+}
+
+func notesForIDs(notes []model.Note, ids map[string]bool) []model.Note {
+	out := make([]model.Note, 0, len(ids))
+	for _, n := range notes {
+		if ids[n.ID] {
+			out = append(out, n)
+		}
+	}
+	return out
+}
+
+func allHaveTag(notes []model.Note, tag string) bool {
+	for _, n := range notes {
+		if !hasTag(n.Tags, tag) {
+			return false
+		}
+	}
+	return true
+}
+
+func keysOf(m map[string]bool) []string {
+	out := make([]string, 0, len(m))
+	for k := range m {
+		out = append(out, k)
+	}
+	return out
+}
+
+// setArchiveCmd forcefully sets the archive tag to the given state, unlike
+// toggleArchiveCmd which flips based on current state.
+func (a *App) setArchiveCmd(note model.Note, archive bool) tea.Cmd {
+	tag := a.archiveTag
+	return func() tea.Msg {
+		if hasTag(note.Tags, tag) == archive {
+			return nil // already in desired state
+		}
+		updated := note
+		action := "archive"
+		if archive {
+			updated.Tags = append(append([]string{}, note.Tags...), tag)
+		} else {
+			updated.Tags = removeTag(note.Tags, tag)
+			action = "unarchive"
+		}
+		updated.UpdatedAt = time.Now().UTC()
+		if err := a.store.Update(updated); err != nil {
+			return errMsg{err}
+		}
+		return noteSavedMsg{note: updated, gitMsg: "note: " + action + " " + updated.ID}
+	}
+}
+
+func (a *App) batchArchiveCmds(notes []model.Note, archive bool) []tea.Cmd {
+	cmds := make([]tea.Cmd, len(notes))
+	for i, n := range notes {
+		cmds[i] = a.setArchiveCmd(n, archive)
+	}
+	return cmds
+}
+
+func (a *App) batchDeleteCmds(ids []string) []tea.Cmd {
+	cmds := make([]tea.Cmd, len(ids))
+	for i, id := range ids {
+		cmds[i] = a.deleteNoteCmd(id)
+	}
+	return cmds
 }

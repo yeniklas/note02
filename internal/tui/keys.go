@@ -3,23 +3,26 @@ package tui
 import "github.com/charmbracelet/bubbles/key"
 
 type keyMap struct {
-	Up       key.Binding
-	Down     key.Binding
-	PageUp   key.Binding
-	PageDown key.Binding
-	Top      key.Binding
-	Bottom   key.Binding
-	Tab      key.Binding
-	New      key.Binding
-	Edit     key.Binding
-	Pin      key.Binding
-	Archive  key.Binding
-	Delete   key.Binding
-	Search   key.Binding
-	Filter   key.Binding
-	Clear    key.Binding
-	Journal  key.Binding
-	Quit     key.Binding
+	Up          key.Binding
+	Down        key.Binding
+	PageUp      key.Binding
+	PageDown    key.Binding
+	Top         key.Binding
+	Bottom      key.Binding
+	Tab         key.Binding
+	New         key.Binding
+	Edit        key.Binding
+	Pin         key.Binding
+	Archive     key.Binding
+	Delete      key.Binding
+	Search      key.Binding
+	Filter      key.Binding
+	Clear       key.Binding
+	Journal     key.Binding
+	Quit        key.Binding
+	SelectToggle key.Binding
+	SelectRange  key.Binding
+	ClearSelect  key.Binding
 }
 
 var keys = keyMap{
@@ -38,6 +41,9 @@ var keys = keyMap{
 	Search:   key.NewBinding(key.WithKeys("/"), key.WithHelp("/", "search")),
 	Filter:   key.NewBinding(key.WithKeys("f"), key.WithHelp("f", "filter")),
 	Clear:    key.NewBinding(key.WithKeys("C"), key.WithHelp("C", "clear filter")),
-	Journal:  key.NewBinding(key.WithKeys("J"), key.WithHelp("J", "journal")),
-	Quit:     key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+	Journal:      key.NewBinding(key.WithKeys("J"), key.WithHelp("J", "journal")),
+	Quit:         key.NewBinding(key.WithKeys("q", "ctrl+c"), key.WithHelp("q", "quit")),
+	SelectToggle: key.NewBinding(key.WithKeys(" "), key.WithHelp("space", "select")),
+	SelectRange:  key.NewBinding(key.WithKeys("ctrl+@"), key.WithHelp("ctrl+space", "select range")),
+	ClearSelect:  key.NewBinding(key.WithKeys("esc"), key.WithHelp("esc", "clear selection")),
 }
