@@ -32,14 +32,13 @@ func (m *listModel) setSize(w, h int) {
 func (m *listModel) preferredWidth() int {
 	const (
 		cursorW = 2
-		dateW   = 10
 		minW    = 24
 	)
 	best := minW
 	for _, n := range m.notes {
 		title := noteTitle(n)
 		tags := strings.Join(visibleTags(n.Tags), " ")
-		w := cursorW + dateW + 1 + len([]rune(title))
+		w := cursorW + len([]rune(title))
 		if tags != "" {
 			w += 1 + len(tags)
 		}
@@ -155,13 +154,12 @@ func (m *listModel) view(focused bool, selected map[string]bool) string {
 			cursor = "  "
 		}
 
-		date := note.EffectiveCreatedAt().Format("2006-01-02")
 		shownTags := visibleTags(note.Tags)
 		tags := coloredTags(shownTags, 18, m.tagColors)
 		tagsW := lipgloss.Width(tags)
 
-		// available space for title: cursor(2) + date(10) + space(1) + title + [space + tags]
-		titleWidth := inner - 2 - len(date) - 1
+		// available space for title: cursor(2) + title + [space + tags]
+		titleWidth := inner - 2
 		if tagsW > 0 {
 			titleWidth -= 1 + tagsW
 		}
@@ -170,7 +168,7 @@ func (m *listModel) view(focused bool, selected map[string]bool) string {
 		}
 		title := truncate(noteTitle(note), titleWidth)
 
-		line := fmt.Sprintf("%s %-*s %s", date, titleWidth, title, tags)
+		line := fmt.Sprintf("%-*s %s", titleWidth, title, tags)
 
 		if i == m.cursor || isSel {
 			if focused {
