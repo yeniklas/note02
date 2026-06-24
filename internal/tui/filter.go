@@ -6,10 +6,11 @@ import (
 )
 
 type filterPopupModel struct {
-	tags   []string
-	cursor int
-	offset int
-	height int
+	tags      []string
+	cursor    int
+	offset    int
+	height    int
+	tagColors map[string]string
 }
 
 func newFilterPopupModel() filterPopupModel {
@@ -84,7 +85,7 @@ func (m *filterPopupModel) view(activeTag string) string {
 		if tag == activeTag {
 			label = "• " + styleSelected.Render(node.label)
 		} else {
-			label = styleTag.Render(node.label)
+			label = tagStyleFor(node.full, m.tagColors).Render(node.label)
 		}
 		sb.WriteString(cursor + indent + connector + label + "\n")
 	}
@@ -104,6 +105,7 @@ func (m *filterPopupModel) view(activeTag string) string {
 type tagTreeRow struct {
 	depth int
 	label string
+	full  string // complete tag name, for color lookup
 }
 
 func tagTree(tags []string) []tagTreeRow {
@@ -132,7 +134,7 @@ func tagTree(tags []string) []tagTreeRow {
 		if nearest != "" {
 			label = tag[len(nearest)+1:]
 		}
-		rows[i] = tagTreeRow{depth: depth, label: label}
+		rows[i] = tagTreeRow{depth: depth, label: label, full: tag}
 	}
 	return rows
 }

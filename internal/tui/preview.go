@@ -11,12 +11,13 @@ import (
 )
 
 type previewModel struct {
-	vp       viewport.Model
-	width    int
-	height   int
-	markdown bool
-	note     *model.Note
-	renderer *glamour.TermRenderer
+	vp        viewport.Model
+	width     int
+	height    int
+	markdown  bool
+	note      *model.Note
+	renderer  *glamour.TermRenderer
+	tagColors map[string]string
 }
 
 func newPreviewModel(markdown bool) previewModel {
@@ -86,7 +87,11 @@ func (m *previewModel) renderMeta() string {
 	date := styleMuted.Render(m.note.UpdatedAt.Format("2006-01-02 15:04"))
 	tags := ""
 	if len(m.note.Tags) > 0 {
-		tags = "  " + styleTag.Render(strings.Join(m.note.Tags, " · "))
+		var styled []string
+		for _, t := range m.note.Tags {
+			styled = append(styled, tagStyleFor(t, m.tagColors).Render(t))
+		}
+		tags = "  " + strings.Join(styled, styleMuted.Render(" · "))
 	}
 	title := ""
 	if m.note.Title != "" {

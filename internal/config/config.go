@@ -20,7 +20,8 @@ type RepoConfig struct {
 }
 
 type DisplayConfig struct {
-	Markdown bool `toml:"markdown"`
+	Markdown  bool              `toml:"markdown"`
+	TagColors map[string]string `toml:"tag_colors"`
 }
 
 type JournalConfig struct {

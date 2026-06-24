@@ -52,6 +52,7 @@ type App struct {
 	syncState   syncState
 	journalTags []string
 	archiveTag  string
+	tagColors   map[string]string
 	width       int
 	height      int
 	markdown    bool
@@ -64,16 +65,23 @@ type App struct {
 	loadingNotes []model.Note
 }
 
-func New(s *store.Store, markdown bool, journalTags []string, archiveTag string) *App {
+func New(s *store.Store, markdown bool, journalTags []string, archiveTag string, tagColors map[string]string) *App {
+	list := newListModel()
+	list.tagColors = tagColors
+	preview := newPreviewModel(markdown)
+	preview.tagColors = tagColors
+	filter := newFilterPopupModel()
+	filter.tagColors = tagColors
 	return &App{
 		store:       s,
-		list:        newListModel(),
-		preview:     newPreviewModel(markdown),
+		list:        list,
+		preview:     preview,
 		search:      newSearchModel(),
-		filter:      newFilterPopupModel(),
+		filter:      filter,
 		markdown:    markdown,
 		journalTags: journalTags,
 		archiveTag:  archiveTag,
+		tagColors:   tagColors,
 		loading:     true,
 		progress:    progress.New(progress.WithDefaultGradient()),
 	}
@@ -713,7 +721,7 @@ func (a *App) renderSyncIndicator() string {
 func (a *App) renderStatus() string {
 	parts := []string{fmt.Sprintf("%d notes", len(a.filtered))}
 	if a.activeTag != "" {
-		parts = append(parts, styleTag.Render("#"+a.activeTag))
+		parts = append(parts, tagStyleFor(a.activeTag, a.tagColors).Render("#"+a.activeTag))
 	}
 	if a.searchQuery != "" {
 		parts = append(parts, styleMuted.Render("search: "+a.searchQuery))

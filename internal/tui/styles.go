@@ -2,6 +2,15 @@ package tui
 
 import "github.com/charmbracelet/lipgloss"
 
+// tagStyleFor returns a lipgloss style for a specific tag, using its configured
+// color if present, otherwise falling back to the default styleTag.
+func tagStyleFor(tag string, tagColors map[string]string) lipgloss.Style {
+	if color, ok := tagColors[tag]; ok {
+		return lipgloss.NewStyle().Foreground(lipgloss.Color(color))
+	}
+	return styleTag
+}
+
 // Gruvbox dark palette
 var (
 	colorSelected  = lipgloss.Color("#fabd2f") // bright yellow

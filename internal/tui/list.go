@@ -9,12 +9,13 @@ import (
 )
 
 type listModel struct {
-	notes   []model.Note
-	cursor  int
-	width   int
-	height  int
-	offset  int
-	loading bool
+	notes     []model.Note
+	cursor    int
+	width     int
+	height    int
+	offset    int
+	loading   bool
+	tagColors map[string]string
 }
 
 func newListModel() listModel {
@@ -144,14 +145,7 @@ func (m *listModel) view(focused bool) string {
 
 		date := note.EffectiveCreatedAt().Format("2006-01-02")
 		shownTags := visibleTags(note.Tags)
-		// Pinned (non-selected) rows render uniformly gold, so their tags are
-		// drawn plain to inherit the row color rather than the aqua tag style.
-		var tags string
-		if pinned && i != m.cursor {
-			tags = plainTags(shownTags, 18)
-		} else {
-			tags = formatTags(shownTags, 18)
-		}
+		tags := coloredTags(shownTags, 18, m.tagColors)
 		tagsW := lipgloss.Width(tags)
 
 		// available space for title: cursor(2) + date(10) + space(1) + title + [space + tags]
@@ -209,6 +203,40 @@ func formatTags(tags []string, maxLen int) string {
 		return ""
 	}
 	return styleTag.Render(plain)
+}
+
+// coloredTags renders each tag with its configured color (falling back to the
+// default tag style), respecting maxLen on the combined plain-text width.
+func coloredTags(tags []string, maxLen int, tagColors map[string]string) string {
+	if len(tags) == 0 {
+		return ""
+	}
+	var parts []string
+	used := 0
+	for i, t := range tags {
+		need := len([]rune(t))
+		if i > 0 {
+			need++ // space separator
+		}
+		if used+need > maxLen {
+			// append truncation indicator to last part if any fit
+			if len(parts) > 0 {
+				parts[len(parts)-1] += "…"
+			} else {
+				// even the first tag doesn't fit; truncate it
+				r := []rune(t)
+				cut := maxLen - 1
+				if cut < 1 {
+					cut = 1
+				}
+				parts = append(parts, tagStyleFor(t, tagColors).Render(string(r[:cut])+"…"))
+			}
+			break
+		}
+		parts = append(parts, tagStyleFor(t, tagColors).Render(t))
+		used += need
+	}
+	return strings.Join(parts, " ")
 }
 
 // plainTags joins tags space-separated and truncates to maxLen, without styling.
