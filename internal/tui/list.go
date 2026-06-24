@@ -142,7 +142,7 @@ func (m *listModel) view(focused bool) string {
 		cursor := "  "
 		var row string
 
-		date := note.UpdatedAt.Format("2006-01-02")
+		date := note.EffectiveCreatedAt().Format("2006-01-02")
 		shownTags := visibleTags(note.Tags)
 		// Pinned (non-selected) rows render uniformly gold, so their tags are
 		// drawn plain to inherit the row color rather than the aqua tag style.

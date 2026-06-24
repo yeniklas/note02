@@ -29,13 +29,21 @@ func (n Note) IsPinned() bool {
 	return false
 }
 
-// SortNotes orders notes pinned-first, then most-recently-updated first within
+// EffectiveCreatedAt returns CreatedAt if set, otherwise UpdatedAt.
+func (n Note) EffectiveCreatedAt() time.Time {
+	if !n.CreatedAt.IsZero() {
+		return n.CreatedAt
+	}
+	return n.UpdatedAt
+}
+
+// SortNotes orders notes pinned-first, then most-recently-created first within
 // each group.
 func SortNotes(notes []Note) {
 	sort.Slice(notes, func(i, j int) bool {
 		if notes[i].IsPinned() != notes[j].IsPinned() {
 			return notes[i].IsPinned()
 		}
-		return notes[i].UpdatedAt.After(notes[j].UpdatedAt)
+		return notes[i].EffectiveCreatedAt().After(notes[j].EffectiveCreatedAt())
 	})
 }
