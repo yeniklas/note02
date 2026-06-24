@@ -119,7 +119,9 @@ func (s *Store) write(note *model.Note) error {
 func (s *Store) Create(note model.Note) (model.Note, error) {
 	note.ID = uuid.New().String()
 	now := time.Now().UTC()
-	note.CreatedAt = now
+	if note.CreatedAt.IsZero() {
+		note.CreatedAt = now
+	}
 	note.UpdatedAt = now
 
 	if err := s.write(&note); err != nil {

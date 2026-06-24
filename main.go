@@ -158,11 +158,11 @@ func runJournal(s *store.Store, repoPath string, journalTags []string) error {
 		return err
 	}
 
-	fmTitle, tags, body := parseFrontmatter(strings.TrimRight(string(data), "\n"))
+	fmTitle, tags, fmCreatedAt, body := parseFrontmatter(strings.TrimRight(string(data), "\n"))
 	body = strings.TrimRight(body, "\n")
 
 	if existing == nil {
-		saved, err := s.Create(model.Note{Title: fmTitle, Content: body, Tags: tags})
+		saved, err := s.Create(model.Note{Title: fmTitle, Content: body, Tags: tags, CreatedAt: fmCreatedAt})
 		if err != nil {
 			return err
 		}
@@ -177,14 +177,14 @@ func runJournal(s *store.Store, repoPath string, journalTags []string) error {
 	return git.CommitAndPush(repoPath, "note: update "+existing.ID)
 }
 
-func parseFrontmatter(text string) (title string, tags []string, content string) {
+func parseFrontmatter(text string) (title string, tags []string, createdAt time.Time, content string) {
 	if !strings.HasPrefix(text, "---\n") {
-		return "", nil, text
+		return "", nil, time.Time{}, text
 	}
 	rest := text[4:]
 	end := strings.Index(rest, "\n---")
 	if end == -1 {
-		return "", nil, text
+		return "", nil, time.Time{}, text
 	}
 	fm := rest[:end]
 	content = strings.TrimPrefix(rest[end+4:], "\n")
@@ -199,9 +199,14 @@ func parseFrontmatter(text string) (title string, tags []string, content string)
 					tags = append(tags, t)
 				}
 			}
+		} else if strings.HasPrefix(line, "created:") {
+			val := strings.TrimSpace(strings.TrimPrefix(line, "created:"))
+			if t, err := time.Parse("2006-01-02", val); err == nil {
+				createdAt = t.UTC()
+			}
 		}
 	}
-	return title, tags, content
+	return title, tags, createdAt, content
 }
 
 // changePassphrase re-wraps the key file under a new passphrase. The X25519 key

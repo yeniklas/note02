@@ -419,12 +419,16 @@ func (a *App) openEditor(note *model.Note, defaultTitle string, defaultTags []st
 	title := defaultTitle
 	tags := defaultTags
 	content := ""
+	var createdAt time.Time
 	if note != nil {
 		title = note.Title
 		tags = note.Tags
 		content = note.Content
+		createdAt = note.EffectiveCreatedAt()
+	} else {
+		createdAt = time.Now().UTC()
 	}
-	fileContent := writeFrontmatter(title, tags, content)
+	fileContent := writeFrontmatter(title, tags, createdAt, content)
 
 	tmp, err := os.CreateTemp("", "note02-*.md")
 	if err != nil {
@@ -458,13 +462,14 @@ func (a *App) openEditor(note *model.Note, defaultTitle string, defaultTags []st
 		if newHash == hash && note != nil {
 			return nil // no change
 		}
-		fmTitle, tags, body := parseFrontmatter(strings.TrimRight(string(data), "\n"))
+		fmTitle, tags, fmCreatedAt, body := parseFrontmatter(strings.TrimRight(string(data), "\n"))
 		body = strings.TrimRight(body, "\n")
 		if note == nil {
 			saved, saveErr := a.store.Create(model.Note{
-				Title:   fmTitle,
-				Content: body,
-				Tags:    tags,
+				Title:     fmTitle,
+				Content:   body,
+				Tags:      tags,
+				CreatedAt: fmCreatedAt,
 			})
 			if saveErr != nil {
 				return errMsg{saveErr}
