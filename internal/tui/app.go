@@ -80,7 +80,14 @@ func New(s *store.Store, markdown bool, journalTags []string, archiveTag string)
 }
 
 func (a *App) Init() tea.Cmd {
-	return tea.Batch(a.startLoadCmd(), a.checkRepoStatusCmd())
+	return a.pullCmd()
+}
+
+func (a *App) pullCmd() tea.Cmd {
+	repoPath := a.store.RepoPath()
+	return func() tea.Msg {
+		return pullDoneMsg{err: git.Pull(repoPath)}
+	}
 }
 
 // startLoadCmd enumerates note IDs (cheap, no decryption) so the total is known
@@ -128,6 +135,13 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		a.relayout()
 		return a, nil
+
+	case pullDoneMsg:
+		cmds := []tea.Cmd{a.startLoadCmd(), a.checkRepoStatusCmd()}
+		if msg.err != nil {
+			cmds = append(cmds, func() tea.Msg { return errMsg{msg.err} })
+		}
+		return a, tea.Batch(cmds...)
 
 	case loadStartMsg:
 		a.loadTotal = len(msg.ids)

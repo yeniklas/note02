@@ -41,6 +41,10 @@ func run(repoPath string, args ...string) error {
 	return nil
 }
 
+func Pull(repoPath string) error {
+	return run(repoPath, "pull", "--ff-only")
+}
+
 func CommitAndPush(repoPath, message string) error {
 	if err := run(repoPath, "add", "notes/", "identity.age"); err != nil {
 		return err

@@ -35,3 +35,5 @@ type repoStatusMsg struct {
 type errMsg struct {
 	err error
 }
+
+type pullDoneMsg struct{ err error }
